@@ -673,3 +673,503 @@ print('Hello,%d%s%.2f' % (666, 'Python', 9.99)) # 打印：Hello,666Python10.00
 print('{k} is {v}'.format(k='python', v='easy'))  # 通过关键字
 print('{0} is {1}'.format('python', 'easy'))      # 通过关键字
 ```
+51.简述 生成器、迭代器、可迭代对象 以及应用场景？
+```text
+应用场景：
+range/xrange
+    - py2： range(1000000)  ,会立即创建，xrange(1000000)生成器
+    - py3：range（10000000）生成器 
+- redis获取值
+conn = Redis(...)
+
+　　　　def hscan_iter(self, name, match=None, count=None):
+　　　　　　"""
+　　　　　　Make an iterator using the HSCAN command so that the client doesn't
+　　　　　　need to remember the cursor position.
+
+　　　　　　``match`` allows for filtering the keys by pattern
+
+　　　　　　``count`` allows for hint the minimum number of returns
+　　　　　　"""
+　　　　　　cursor = '0'
+　　　　　　while cursor != 0:
+　　　　　　　　# 去redis中获取数据：12
+　　　　　　　　# cursor，下一次取的位置
+　　　　　　　　# data：本地获取的12条数数据
+　　　　　　　　cursor, data = self.hscan(name, cursor=cursor,match=match, count=count)
+　　　　　　　　for item in data.items():
+　　　　　　　　　　yield item
+
+stark组件
+
+def index(request):
+　　　　data = [
+　　　　　　{'k1':1,'name':'alex'},
+　　　　　　{'k1':2,'name':'老男孩'},
+　　　　　　{'k1':3,'name':'小男孩'},
+　　　　]
+　　　　new_data = []
+　　　　for item in data:
+　　　　　　item['email'] = "xxx@qq.com"
+　　　　　　new_data.append(item)
+
+　　　　return render(request,'xx.html',{'data':new_data})
+```
+装饰器
+```text
+装饰器：
+能够在不修改原函数代码的基础上，在执行前后进行定制操作，闭包函数的一种应用
+场景：
+   - flask路由系统
+   - flask before_request
+   - csrf
+   - django内置认证
+   - django缓存
+# 手写装饰器；
+import functools
+def wrapper(func):
+   @functools.wraps(func)  #不改变原函数属性
+   def inner(*args, **kwargs):
+      执行函数前
+      return func(*args, **kwargs)
+      执行函数后
+   return inner
+1. 执行wapper函数，并将被装饰的函数当做参数。 wapper(index)
+2. 将第一步的返回值，重新赋值给  新index =  wapper(老index)
+@wrapper    #index=wrapper(index)
+def index(x):
+   return x+100
+
+调用装饰器其实是一个闭包函数，为其他函数添加附加功能，不修改被修改的源代码和不修改被修饰的方式，装饰器的返回值也是一个函数对象。
+比如：插入日志、性能测试、事物处理、缓存、权限验证等，有了装饰器，就可以抽离出大量与函数功能本身无关的雷同代码并继续重用。
+```
+52. 用Python实现一个二分查找的函数。
+```text
+优点：效率高，时间复杂度为O(logN)； 
+缺点：数据要是有序的，顺序存储。
+def search(n, li):
+    l = len(li)-1
+    s = 0
+    while s <= l:
+        m = (s+l)//2
+        if li[m] > n: 
+            l = m-1
+        elif li[m] < n:
+            s = m+1
+        else:
+            return True
+    return False
+    
+li = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+search(3, li)  # 元素索引为2
+```
+53. 谈谈你对闭包的理解？
+```text
+说明：
+bar在foo函数的代码块中定义。我们称bar是foo的内部函数。
+在bar的局部作用域中可以直接访问foo局部作用域中定义的m、n变量。
+简单的说，这种内部函数可以使用外部函数变量的行为，就叫闭包。
+```
+54. os和sys模块的作用？
+```text
+os模块负责程序与操作系统的交互，提供了访问操作系统底层的接口;
+sys模块负责程序与python解释器的交互，提供了一系列的函数和变量，用于操控python的运行时环境。
+
+os与sys模块的官方解释如下：
+os: This module provides a portable way of using operating system dependent functionality.
+这个模块提供了一种方便的使用操作系统函数的方法。
+sys: This module provides access to some variables used or maintained by the interpreter and to 
+functions that interact strongly with the interpreter.
+这个模块可供访问由解释器使用或维护的变量和与解释器进行交互的函数。
+os 常用方法
+os.remove() 删除文件
+os.rename() 重命名文件
+os.walk() 生成目录树下的所有文件名
+os.chdir() 改变目录
+os.mkdir/makedirs 创建目录/多层目录
+os.rmdir/removedirs 删除目录/多层目录
+os.listdir() 列出指定目录的文件
+os.getcwd() 取得当前工作目录
+os.chmod() 改变目录权限
+os.path.basename() 去掉目录路径，返回文件名
+os.path.dirname() 去掉文件名，返回目录路径
+os.path.join() 将分离的各部分组合成一个路径名
+os.path.split() 返回( dirname(), basename())元组
+os.path.splitext() 返回 (filename, extension) 元组
+os.path.getatime\ctime\mtime 分别返回最近访问、创建、修改时间
+os.path.getsize() 返回文件大小
+os.path.exists() 是否存在
+os.path.isabs() 是否为绝对路径
+os.path.isdir() 是否为目录
+os.path.isfile() 是否为文件
+sys 常用方法
+sys.argv 命令行参数List，第一个元素是程序本身路径
+sys.modules.keys() 返回所有已经导入的模块列表
+sys.exc_info() 获取当前正在处理的异常类,exc_type、exc_value、exc_traceback当前处理的异常详细信息
+sys.exit(n) 退出程序，正常退出时exit(0)
+sys.hexversion 获取Python解释程序的版本值，16进制格式如：0x020403F0
+sys.version 获取Python解释程序的版本信息
+sys.maxint 最大的Int值
+sys.maxunicode 最大的Unicode值
+sys.modules 返回系统导入的模块字段，key是模块名，value是模块
+sys.path 返回模块的搜索路径，初始化时使用PYTHONPATH环境变量的值
+sys.platform 返回操作系统平台名称
+sys.stdout 标准输出
+sys.stdin 标准输入
+sys.stderr 错误输出
+sys.exc_clear() 用来清除当前线程所出现的当前的或最近的错误信息
+sys.exec_prefix 返回平台独立的python文件安装的位置
+sys.byteorder 本地字节规则的指示器，big-endian平台的值是'big',little-endian平台的值是'little'
+sys.copyright 记录python版权相关的东西
+sys.api_version 解释器的C的API版本
+总结：
+os模块负责程序与操作系统的交互，提供了访问操作系统底层的接口;
+sys模块负责程序与python解释器的交互，提供了一系列的函数和变量，用于操控python的运行时环境。
+
+```
+55. 如何生成一个随机数？
+```text
+import random
+print(random.random())          # 用于生成一个0到1的随机符点数: 0 <= n < 1.0
+print(random.randint(1, 1000))  # 用于生成一个指定范围内的整数
+```
+56. 如何使用python删除一个文件？
+```text
+import os
+file = r'D:\test.txt'
+if os.path.exists(file):
+    os.remove(file)
+    print('delete success')
+else:
+    print('no such file:%s' % file)
+```
+57. 谈谈你对面向对象的理解
+```text
+三大特性以及解释？
+面对对象是一种编程思想，以类的眼光来来看待事物的一种方式。将有共同的属性和方法的事物封装到同一个类下面。
+
+继承：将多个类的共同属性和方法封装到一个父类下面，然后在用这些类来继承这个类的属性和方法
+
+封装：将有共同的属性和方法封装到同一个类下面
+
+第一层面：创建类和对象会分别创建二者的名称空间，我们只能用类名.或者obj.的方式去访问里面的名字，这本身就是一种封装
+第二层面：类中把某些属性和方法隐藏起来(或者说定义成私有的)，只在类的内部使用、外部无法访问，或者留下少量接口（函数）供外部访问。
+多态：Python天生是支持多态的。指的是基类的同一个方法在不同的派生类中有着不同的功能
+```
+58. Python面向对象中的继承有什么特点
+```text
+继承概念的实现方式主要有2类：实现继承、接口继承。
+         实现继承是指使用基类的属性和方法而无需额外编码的能力；
+         接口继承是指仅使用属性和方法的名称、但是子类必须提供实现的能力(子类重构爹类方法)；
+python 两种类：经典类 新式类
+python3 新式类 —— 都默认继承object class Animal(object): == class Animal:
+python2 经典类和新式类 并存
+        class Animal:  经典类 —— 继承顺序 个别使用方法
+        class Animal(object):  新式类
+继承分为单继承和多继承
+Python是支持多继承的
+如果没有指定基类，python的类会默认继承object类，object是所有python类的基类，它提供了一些常见方法（如__str__）的实现。
+```
+补充继承的应用（面试题）
+```text
+1、对象可以调用自己本类和父类的所有方法和属性， 先调用自己的 自己没有才调父类的。谁（对象）调用方法，方法中的self就指向谁
+
+class Foo:
+    def __init__(self):
+        self.func()
+
+    def func(self):
+        print('Foo.func')
+
+class Son(Foo):
+    def func(self):
+        print('Son.func')
+
+s = Son()  # Son.func
+
+========================================================
+class A:
+    def get(self):
+        self.say()
+
+    def say(self):
+        print('AAAAA')
+
+class B(A):
+    def say(self):
+        print('BBBBB')
+b = B()
+b.get()   # 输出结果为：BBBBB
+```
+59. 面向对象深度优先和广度优先是什么？
+```text
+Python的类可以继承多个类，Python的类如果继承了多个类，那么其寻找方法的方式有两种
+当类是经典类时，多继承情况下，会按照深度优先方式查找  py3
+当类是新式类时，多继承情况下，会按照广度优先方式查找  py2
+简单点说就是：经典类是纵向查找，新式类是横向查找
+经典类和新式类的区别就是，在声明类的时候，新式类需要加上object关键字。在python3中默认全是新式类
+```
+60. 面向对象中super的作用？
+```text
+class FooParent(object):
+    def __init__(self):
+        self.parent = 'I\'m the parent.'
+        print('Parent')
+        print('1111')
+
+    def bar(self, message):
+        print("%s from Parent" % message)
+
+
+class FooChild(FooParent):
+    def __init__(self):
+        # super(FooChild,self) 首先找到 FooChild 的父类（就是类 FooParent），然后把类B的对象 FooChild 转换为类 FooParent 的对象
+        super(FooChild, self).__init__()
+        print('Child')
+
+    # def bar(self, message):
+    #     # super(FooChild, self).bar(message)
+    #     print('Child bar fuction')
+    #     print(self.parent)
+
+
+if __name__ == '__main__':
+    fooChild = FooChild()
+    fooChild.bar('HelloWorld')
+```
+61. 是否使用过functools中的函数？其作用是什么？
+```text
+# 用于修复装饰器 不改变被装饰的函数
+import functools
+ 
+def deco(func):
+    @functools.wraps(func)  # 加在最内层函数正上方
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+ 
+    return wrapper
+ 
+ 
+@deco
+def index():
+    '''哈哈哈哈'''
+    x = 10
+    print('from index')
+ 
+ 
+print(index.__name__)
+print(index.__doc__)
+ 
+# 加@functools.wraps
+# index
+# 哈哈哈哈
+ 
+# 不加@functools.wraps
+# wrapper
+# None
+```
+62. 列举面向对象中带双下划线的特殊方法，如：__new__、__init__
+```text
+__new__：生成实例
+__init__：生成实例的属性
+__call__：实例对象加( )会执行def __call__:... 方法里边的内容。
+__del__：析构方法，当对象在内存中被释放时，自动触发执行。如当 del obj 或者应用程序运行完毕时，执行该方法里边的内容。
+__enter__和__exit__：出现with语句,对象的__enter__被触发,有返回值则赋值给as声明的变量；with中代码块执行完毕时执行__exit__里边的内容。
+__module__：表示当前操作的对象在那个模块   obj.__module__
+__class__ ：表示当前操作的对象的类是什么     obj.__class__
+__doc__：类的描述信息，该描述信息无法被继承
+__str__：改变对象的字符串显示 print函数 --->obj.__str__()
+__repr__：改变对象的字符串显示 交互式解释器 --->obj.__repr__()
+__format__：自定制格式化字符串
+__slots__:一个类变量 用来限制实例可以添加的属性的数量和类型  
+__setitem__,__getitem,__delitem__:
+__get__():调用一个属性时,触发
+__set__():为一个属性赋值时,触发
+__delete__():采用del删除属性时,触发
+__setattr__,__delattr__,__getattr__ :
+
+class Foo:
+    def __init__(self,name):
+        self.name=name
+    def __getitem__(self, item):
+        print(self.__dict__[item])
+    def __setitem__(self, key, value):
+        self.__dict__[key]=value
+    def __delitem__(self, key):
+        print('del obj[key]时,我执行')
+        self.__dict__.pop(key)
+    def __delattr__(self, item):
+        print('del obj.key时,我执行')
+        self.__dict__.pop(item)
+f1=Foo('sb')
+f1['age']=18
+f1['age1']=19
+del f1.age1
+del f1['age']
+f1['name']='alex'
+print(f1.__dict__)
+```
+63. 如何判断是函数还是方法？
+```text
+看他的调用者是谁，如果是类，就需要传入一个参数self的值，这时他就是一个函数，
+如果调用者是对象，就不需要给self传入参数值，这时他就是一个方法
+print(isinstance(obj.func, FunctionType))   # False
+print(isinstance(obj.func, MethodType))    # True
+
+class Foo(object):
+    def __init__(self):
+        self.name = 'lcg'
+ 
+    def func(self):
+        print(self.name)
+ 
+ 
+obj = Foo()
+print(obj.func)  # <bound method Foo.func of <__main__.Foo object at 0x000001ABC0F15F98>>
+ 
+print(Foo.func)  # <function Foo.func at 0x000001ABC1F45BF8>
+ 
+# ------------------------FunctionType, MethodType------------#
+ 
+ 
+from types import FunctionType, MethodType
+ 
+obj = Foo()
+print(isinstance(obj.func, FunctionType))  # False
+print(isinstance(obj.func, MethodType))  # True
+ 
+print(isinstance(Foo.func, FunctionType))  # True
+print(isinstance(Foo.func, MethodType))  # False
+ 
+# ------------------------------------------------------------#
+obj = Foo()
+Foo.func(obj)  # lcg
+ 
+obj = Foo()
+obj.func()  # lcg
+ 
+"""
+注意：
+    方法，无需传入self参数
+    函数，必须手动传入self参数
+"""
+```
+64. 静态方法和类方法区别？
+```text
+尽管 classmethod 和 staticmethod 非常相似，但在用法上依然有一些明显的区别。classmethod 必须有一个指向类对象的引用作为第一个参数，而 staticmethod 可以没有任何参数。
+class Num:
+    # 普通方法：能用Num调用而不能用实例化对象调用   
+    def one():  
+        print ('1')
+ 
+    # 实例方法：能用实例化对象调用而不能用Num调用
+    def two(self):
+        print ('2')
+ 
+    # 静态方法：能用Num和实例化对象调用
+    @staticmethod 
+    def three():  
+        print ('3')
+ 
+    # 类方法：第一个参数cls长什么样不重要，都是指Num类本身，调用时将Num类作为对象隐式地传入方法   
+    @classmethod 
+    def go(cls): 
+        cls.three() 
+ 
+Num.one()          #1
+#Num.two()         #TypeError: two() missing 1 required positional argument: 'self'
+Num.three()        #3
+Num.go()           #3
+ 
+i=Num()                
+#i.one()           #TypeError: one() takes 0 positional arguments but 1 was given         
+i.two()            #2      
+i.three()          #3
+i.go()             #3 
+```
+65. 列举面向对象中的特殊成员以及应用场景
+```text
+__call__
+__new__
+__init__
+__doc__
+__class__
+__del__
+__dict__
+__str__
+在falsk源码用到......
+```
+66. 1、2、3、4、5 能组成多少个互不相同且无重复的三位数
+```text
+题意理解：组成后的数值不相同，且组合的三个位数之间数字不重复。
+使用python内置的排列组合函数（不放回抽样排列）
+product 笛卡尔积　　（有放回抽样排列）
+permutations 排列　　（不放回抽样排列）
+combinations 组合,没有重复　　（不放回抽样组合）
+combinations_with_replacement 组合,有重复　　（有放回抽样组合）
+
+import itertools
+print(len(list(itertools.permutations('12345', 3))))  # 60
+```
+67. 什么是反射？以及应⽤用场景？
+```text
+反射的核心本质就是以字符串的形式去导入个模块，利用字符串的形式去执行函数。
+Django中的 CBV就是基于反射实现的。
+```
+68. metaclass作用？以及应用场景？
+```text
+metaclass用来指定类是由谁创建的。
+类的metaclass 默认是type。我们也可以指定类的metaclass值。在python3中：
+class MyType(type):
+    def __call__(self, *args, **kwargs):
+        return 'MyType'
+  
+class Foo(object, metaclass=MyType):
+    def __init__(self):
+        return 'init'
+  
+    def __new__(cls, *args, **kwargs):
+        return cls.__init__(cls)
+  
+    def __call__(self, *args, **kwargs):
+        return 'call'
+  
+obj = Foo()
+print(obj)  # MyType
+```
+69. 用尽量多的方法实现单例模式。
+```text
+1：使用模块
+Python的模块就是天然的单例模式。
+因为模块在第一次导入时，会生成 .pyc 文件，当第二次导入时，就会直接加载 .pyc 文件，而不会再次执行模块代码。
+因此，我们只需把相关的函数和数据定义在一个模块中，就可以获得一个单例对象了。
+例如：
+class V1(object):
+    def foo(self)
+        pass
+V1 = V1()
+将上面代码保存在文件test.py,要使用时，直接在其他文件中导入此文件中的对象，这个对象既是单例模式的对象
+
+如：from a import V1
+
+2：使用装饰器
+def Singleton(cls):
+    _instance = {}
+    def _singleton(*args, **kargs):
+        if cls not in _instance:
+            _instance[cls] = cls(*args, **kargs)
+        return _instance[cls]
+    return _singleton
+@Singleton
+class A(object):
+    a = 1
+    def __init__(self, x=0):
+        self.x = x
+a1 = A(2)
+a2 = A(3)
+
+3：使用类
+4：基于__new__方法实现
+当我们实例化一个对象时，是先执行了类的__new__方法
+当：（我们没写时，默认调用object.__new__），实例化对象；然后再执行类的__init__方法，对这个对象进行初始化，所有我们可以基于这个，实现单例模式
+```
