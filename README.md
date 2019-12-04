@@ -1173,3 +1173,76 @@ a2 = A(3)
 当我们实例化一个对象时，是先执行了类的__new__方法
 当：（我们没写时，默认调用object.__new__），实例化对象；然后再执行类的__init__方法，对这个对象进行初始化，所有我们可以基于这个，实现单例模式
 ```
+70. 装饰器器的写法以及应用场景。
+```text
+含义：装饰器本质就是函数，为其他函数添加附加功能
+原则：不修改被修饰函数的代码
+不修改被修饰函数的调用方式
+应用场景：
+无参装饰器在用户登录 认证中常见
+有参装饰器在flask的路由系统中见到过
+import functools
+def wrapper(func):
+    @functools.wraps(func)
+    def inner(*args, **kwargs):
+        print('我是装饰器')
+        return func
+return inner
+@wrapper
+def index():
+    print('我是被装饰函数')
+    return None
+index()
+# 应用场景
+    - 高阶函数
+    - 闭包
+    - 装饰器 
+    - functools.wraps(func)
+```
+71. 异常处理写法以及如何主动跑出异常（应用场景）
+```text
+# 触发异常
+def temp_convert(var):
+    try:
+        return int(var)
+    except ValueError as Argument:
+        print ("参数没有包含数字%s"%Argument)
+# 调用函数
+temp_convert("xyz")
+# 以10为基数的int()的无效文字:“xyz”
+----------------------------------------------------------------------------
+# raise语法
+#raise [Exception [, args [, traceback]]]
+# 语句中 Exception 是异常的类型，args 是自已提供的异常参数。
+
+class Networkerror(RuntimeError):
+    def __init__(self, arg):
+        self.args = arg
+try:
+    raise Networkerror("Bad hostname")
+except Networkerror as e:
+    print(e.args)
+```
+72、什么是面向对象的mro
+```text
+mro就是方法解析顺序
+```
+73. isinstance作用以及应用场景？
+```text
+isinstance(对象，类)  判断这个对象是不是这个类或者这个类的子类的实例化
+# # 判断a 属不属于A这个类（可以判断到祖宗类）
+class A:
+    pass
+class B(A):
+    pass
+a = A()
+b = B()
+print(isinstance(b,A)) # ===> True  判断到祖宗类
+
+# 任何与object都是True,内部都继承object
+class A:pass
+a = A()  # 实例化
+print(isinstance(a,object))  #  True
+应用场景：rest framework 认证的流程
+scrapy-redis
+```
