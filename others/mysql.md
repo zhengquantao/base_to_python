@@ -412,3 +412,405 @@ redis-server /etc/redis-6380.conf  启动从redis
         - 主redis的IP, 1 
     启动两个哨兵   
 ```
+143.如何实现redis集群？
+```text
+ redis集群、分片、分布式redis     
+    redis-py-cluster
+    集群方案：
+        - redis cluster 官方提供的集群方案。
+        - codis，豌豆荚技术团队。
+        - tweproxy，Twiter技术团队。
+    redis cluster的原理？
+        - 基于分片来完成。
+        - redis将所有能放置数据的地方创建了 16384 个哈希槽。
+        - 如果设置集群的话，就可以为每个实例分配哈希槽：
+            - 192.168.1.20【0-5000】
+            - 192.168.1.21【5001-10000】
+            - 192.168.1.22【10001-16384】
+        - 以后想要在redis中写值时，
+            set k1 123 
+将k1通过crc16的算法，将k1转换成一个数字。然后再将该数字和16384求余，如果得到的余数 3000，那么就将该值写入到 192.168.1.20 实例中。
+```
+144.redis中默认有多少个哈希槽？
+```text
+16384
+```
+145.简述redis的有哪几种持久化策略及比较？
+```text
+
+RDB：每隔一段时间对redis进行一次持久化。
+      - 缺点：数据不完整
+      - 优点：速度快
+AOF：把所有命令保存起来，如果想到重新生成到redis，那么就要把命令重新执行一次。
+      - 缺点：速度慢，文件比较大
+      - 优点：数据完整
+```
+146.列举redis支持的过期策略。
+```text
+  voltile-lru：    从已设置过期时间的数据集（server.db[i].expires）中挑选最近频率最少数据淘汰
+  volatile-ttl：   从已设置过期时间的数据集（server.db[i].expires）中挑选将要过期的数据淘汰
+  volatile-random：从已设置过期时间的数据集（server.db[i].expires）中任意选择数据淘汰
+
+  
+  allkeys-lru：       从数据集（server.db[i].dict）中挑选最近最少使用的数据淘汰
+  allkeys-random：    从数据集（server.db[i].dict）中任意选择数据淘汰
+  no-enviction（驱逐）：禁止驱逐数据
+```
+147.MySQL 里有 2000w 数据，redis 中只存 20w 的数据，如何保证 redis 中都是热点数据？ 
+```text
+
+  相关知识：redis 内存数据集大小上升到一定大小的时候，就会施行数据淘汰策略（回收策略）。redis 提供 6种数据淘汰策略：
+
+  volatile-lru：从已设置过期时间的数据集（server.db[i].expires）中挑选最近最少使用的数据淘汰
+  volatile-ttl：从已设置过期时间的数据集（server.db[i].expires）中挑选将要过期的数据淘汰
+  volatile-random：从已设置过期时间的数据集（server.db[i].expires）中任意选择数据淘汰
+  allkeys-lru：从数据集（server.db[i].dict）中挑选最近最少使用的数据淘汰
+  allkeys-random：从数据集（server.db[i].dict）中任意选择数据淘汰
+  no-enviction（驱逐）：禁止驱逐数据
+```
+148.写代码，基于redis的列表实现 先进先出、后进先出队列、优先级队列。
+```text
+ 参看script—redis源码
+from scrapy.utils.reqser import request_to_dict, request_from_dict
+
+  from . import picklecompat
+
+
+  class Base(object):
+      """Per-spider base queue class"""
+
+      def __init__(self, server, spider, key, serializer=None):
+          """Initialize per-spider redis queue.
+
+          Parameters
+          ----------
+          server : StrictRedis
+              Redis client instance.
+          spider : Spider
+              Scrapy spider instance.
+          key: str
+              Redis key where to put and get messages.
+          serializer : object
+              Serializer object with ``loads`` and ``dumps`` methods.
+
+          """
+          if serializer is None:
+              # Backward compatibility.
+              # TODO: deprecate pickle.
+              serializer = picklecompat
+          if not hasattr(serializer, 'loads'):
+              raise TypeError("serializer does not implement 'loads' function: %r"
+                              % serializer)
+          if not hasattr(serializer, 'dumps'):
+              raise TypeError("serializer '%s' does not implement 'dumps' function: %r"
+                              % serializer)
+
+          self.server = server
+          self.spider = spider
+          self.key = key % {'spider': spider.name}
+          self.serializer = serializer
+
+      def _encode_request(self, request):
+          """Encode a request object"""
+          obj = request_to_dict(request, self.spider)
+          return self.serializer.dumps(obj)
+
+      def _decode_request(self, encoded_request):
+          """Decode an request previously encoded"""
+          obj = self.serializer.loads(encoded_request)
+          return request_from_dict(obj, self.spider)
+
+      def __len__(self):
+          """Return the length of the queue"""
+          raise NotImplementedError
+
+      def push(self, request):
+          """Push a request"""
+          raise NotImplementedError
+
+      def pop(self, timeout=0):
+          """Pop a request"""
+          raise NotImplementedError
+
+      def clear(self):
+          """Clear queue/stack"""
+          self.server.delete(self.key)
+
+
+  class FifoQueue(Base):
+      """Per-spider FIFO queue"""
+
+      def __len__(self):
+          """Return the length of the queue"""
+          return self.server.llen(self.key)
+
+      def push(self, request):
+          """Push a request"""
+          self.server.lpush(self.key, self._encode_request(request))
+
+      def pop(self, timeout=0):
+          """Pop a request"""
+          if timeout > 0:
+              data = self.server.brpop(self.key, timeout)
+              if isinstance(data, tuple):
+                  data = data[1]
+          else:
+              data = self.server.rpop(self.key)
+          if data:
+              return self._decode_request(data)
+
+
+  class PriorityQueue(Base):
+      """Per-spider priority queue abstraction using redis' sorted set"""
+
+      def __len__(self):
+          """Return the length of the queue"""
+          return self.server.zcard(self.key)
+
+      def push(self, request):
+          """Push a request"""
+          data = self._encode_request(request)
+          score = -request.priority
+          # We don't use zadd method as the order of arguments change depending on
+          # whether the class is Redis or StrictRedis, and the option of using
+          # kwargs only accepts strings, not bytes.
+          self.server.execute_command('ZADD', self.key, score, data)
+
+      def pop(self, timeout=0):
+          """
+          Pop a request
+          timeout not support in this queue class
+          """
+          # use atomic range/remove using multi/exec
+          pipe = self.server.pipeline()
+          pipe.multi()
+          pipe.zrange(self.key, 0, 0).zremrangebyrank(self.key, 0, 0)
+          results, count = pipe.execute()
+          if results:
+              return self._decode_request(results[0])
+
+
+  class LifoQueue(Base):
+      """Per-spider LIFO queue."""
+
+      def __len__(self):
+          """Return the length of the stack"""
+          return self.server.llen(self.key)
+
+      def push(self, request):
+          """Push a request"""
+          self.server.lpush(self.key, self._encode_request(request))
+
+      def pop(self, timeout=0):
+          """Pop a request"""
+          if timeout > 0:
+              data = self.server.blpop(self.key, timeout)
+              if isinstance(data, tuple):
+                  data = data[1]
+          else:
+              data = self.server.lpop(self.key)
+
+          if data:
+              return self._decode_request(data)
+
+
+  # TODO: Deprecate the use of these names.
+  SpiderQueue = FifoQueue
+  SpiderStack = LifoQueue
+  SpiderPriorityQueue = PriorityQueue
+```
+150.如何基于redis实现发布和订阅？以及发布订阅和消息队列的区别？
+```text
+ 发布和订阅，只要有任务就给所有订阅者没人一份
+  发布者：
+      import redis
+
+      conn = redis.Redis(host='127.0.0.1',port=6379)
+      conn.publish('104.9MH', "hahaha")
+  订阅者：
+      import redis
+
+      conn = redis.Redis(host='127.0.0.1',port=6379)
+      pub = conn.pubsub()
+      pub.subscribe('104.9MH')
+
+      while True:
+          msg= pub.parse_response()
+          print(msg)
+```
+151.什么是codis及作用？
+```text
+ Codis 是一个分布式 Redis 解决方案, 对于上层的应用来说, 连接到 Codis Proxy 和连接原生的 Redis Server 没有明显的区别 
+(不支持的命令列表), 上层应用可以像使用单机的 Redis 一样使用, Codis 底层会处理请求的转发, 不停机的数据迁移等工作,
+ 所有后边的一切事情, 对于前面的客户端来说是透明的, 可以简单的认为后边连接的是一个内存无限大的 Redis 服务.
+```
+152.什么是twemproxy及作用？
+```text
+  twemproxy是 Twtter 开源的一个 Redis 和 Memcache 代理服务器，主要用于管理 Redis 和 Memcached 集群，
+减少与Cache 服务器直接连接的数量。
+```
+153.写代码实现redis事务操作。
+```text
+  import redis
+  pool = redis.ConnectionPool(host='10.211.55.4', port=6379)
+  conn = redis.Redis(connection_pool=pool)
+  # pipe = r.pipeline(transaction=False)
+  pipe = conn.pipeline(transaction=True)
+  # 开始事务
+  pipe.multi()
+
+  pipe.set('name', 'bendere')
+  pipe.set('role', 'sb')
+
+  # 提交
+  pipe.execute()
+  
+  注意：咨询是否当前分布式redis是否支持事务
+```
+154.redis中的watch的命令的作用？
+```text
+在Redis的事务中，WATCH命令可用于提供CAS(check-and-set)功能。
+假设我们通过WATCH命令在事务执行之前监控了多个Keys，倘若在WATCH之后有任何Key的值发生了变化，
+EXEC命令执行的事务都将被放弃，同时返回Null multi-bulk应答以通知调用者事务执行失败。
+  
+  面试题：你如何控制剩余的数量不会出问题？
+      方式一：- 通过redis的watch实现
+          import redis
+          conn = redis.Redis(host='127.0.0.1',port=6379)
+
+          # conn.set('count',1000)
+          val = conn.get('count')
+          print(val)
+
+          with conn.pipeline(transaction=True) as pipe:
+
+              # 先监视，自己的值没有被修改过
+              conn.watch('count')
+
+              # 事务开始
+              pipe.multi()
+              old_count = conn.get('count')
+              count = int(old_count)
+              print('现在剩余的商品有:%s',count)
+              input("问媳妇让不让买？")
+              pipe.set('count', count - 1)
+
+              # 执行，把所有命令一次性推送过去
+              pipe.execute()
+     方式二 - 数据库的锁 
+```
+155.基于redis如何实现商城商品数量计数器？
+```text
+import redis
+
+conn = redis.Redis(host='192.168.1.41',port=6379)
+
+conn.set('count',1000)
+
+with conn.pipeline() as pipe:
+
+    # 先监视，自己的值没有被修改过
+    conn.watch('count')
+
+    # 事务开始
+    pipe.multi()
+    old_count = conn.get('count')
+    count = int(old_count)
+    if count > 0:  # 有库存
+        pipe.set('count', count - 1)
+
+    # 执行，把所有命令一次性推送过去
+    pipe.execute()
+```
+156.简述redis分布式锁和redlock的实现机制。
+```text
+在不同进程需要互斥地访问共享资源时，分布式锁是一种非常有用的技术手段。 
+有很多三方库和文章描述如何用Redis实现一个分布式锁管理器，但是这些库实现的方式差别很大
+，而且很多简单的实现其实只需采用稍微增加一点复杂的设计就可以获得更好的可靠性。 
+用Redis实现分布式锁管理器的算法，我们把这个算法称为RedLock。
+
+实现
+- 写值并设置超时时间
+- 超过一半的redis实例设置成功，就表示加锁完成。
+- 使用：安装redlock-py 
+from redlock import Redlock
+
+dlm = Redlock(
+    [
+        {"host": "localhost", "port": 6379, "db": 0},
+        {"host": "localhost", "port": 6379, "db": 0},
+        {"host": "localhost", "port": 6379, "db": 0},
+    ]
+)
+
+# 加锁，acquire
+my_lock = dlm.lock("my_resource_name",10000)
+if  my_lock:
+    # J进行操作
+    # 解锁,release
+    dlm.unlock(my_lock)
+else:
+    print('获取锁失败')
+复制代码
+
+ redis分布式锁？
+# 不是单机操作，又多了一/多台机器
+# redis内部是单进程、单线程，是数据安全的(只有自己的线程在操作数据)
+----------------------------------------------------------------
+\A、B、C，三个实例(主)
+1、来了一个'隔壁老王'要操作，且不想让别人操作，so，加锁；
+    加锁：'隔壁老王'自己生成一个随机字符串，设置到A、B、C里(xxx=666)
+2、来了一个'邻居老李'要操作A、B、C，一读发现里面有字符串，擦，被加锁了，不能操作了，等着吧~
+3、'隔壁老王'解决完问题，不用锁了，把A、B、C里的key：'xxx'删掉；完成解锁
+4、'邻居老李'现在可以访问，可以加锁了
+# 问题：
+1、如果'隔壁老王'加锁后突然挂了，就没人解锁，就死锁了，其他人干看着没法用咋办？
+2、如果'隔壁老王'去给A、B、C加锁的过程中，刚加到Ａ，'邻居老李'就去操作C了，加锁成功or失败？
+3、如果'隔壁老王'去给A、B、C加锁时，C突然挂了，这次加锁是成功还是失败？
+4、如果'隔壁老王'去给A、B、C加锁时，超时时间为5秒，加一个锁耗时3秒，此次加锁能成功吗？
+# 解决
+1、安全起见，让'隔壁老王'加锁时设置超时时间，超时的话就会自动解锁(删除key：'xxx')
+2、加锁程度达到（1/2）+1个就表示加锁成功，即使没有给全部实例加锁；
+3、加锁程度达到（1/2）+1个就表示加锁成功，即使没有给全部实例加锁；
+4、不能成功，锁还没加完就过期，没有意义了，应该合理设置过期时间
+# 注意
+    使用需要安装redlock-py
+----------------------------------------------------------------
+from redlock import Redlock
+dlm = Redlock(
+    [
+        {"host": "localhost", "port": 6379, "db": 0},
+        {"host": "localhost", "port": 6379, "db": 0},
+        {"host": "localhost", "port": 6379, "db": 0},
+    ]
+)
+# 加锁，acquire
+my_lock = dlm.lock("my_resource_name",10000)
+if  my_lock:
+    # 进行操作
+    # 解锁,release
+    dlm.unlock(my_lock)
+else:
+    print('获取锁失败')
+\通过sever.eval(self.unlock_script)执行一个lua脚本，用来删除加锁时的key
+```
+157.什么是一致性哈希？Python中是否有相应模块？
+```text
+ 一致性哈希
+一致性hash算法（DHT）可以通过减少影响范围的方式，解决增减服务器导致的数据散列问题，从而解决了分布式环境下负载均衡问题；
+如果存在热点数据，可以通过增添节点的方式，对热点区间进行划分，将压力分配至其他服务器，重新达到负载均衡的状态。
+Python模块--hash_ring，即Python中的一致性hash
+```
+158.如何高效的找到redis中所有以aaa开头的key？
+```text
+redis 有一个keys命令。
+# 语法：KEYS pattern
+# 说明：返回与指定模式相匹配的所用的keys。
+该命令所支持的匹配模式如下：
+1、?：用于匹配单个字符。例如，h?llo可以匹配hello、hallo和hxllo等；
+2、*：用于匹配零个或者多个字符。例如，h*llo可以匹配hllo和heeeello等；
+2、[]：可以用来指定模式的选择区间。例如h[ae]llo可以匹配hello和hallo，但是不能匹配hillo。同时，可以使用“/”符号来转义特殊的字符
+# 注意
+KEYS 的速度非常快，但如果数据太大，内存可能会崩掉，
+如果需要从一个数据集中查找特定的key，最好还是用Redis的集合结构(set)来代替。
+```
